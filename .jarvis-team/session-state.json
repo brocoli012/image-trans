@@ -3,24 +3,35 @@
   "createdAt": "2026-05-30",
   "updatedAt": "2026-05-30",
   "project": "image_trans",
-  "mode": "Teams",
+  "mode": "Teams→Classic(단일 선형 위임)",
   "version": "v10.10",
-  "phase": "완료 (배포)",
+  "phase": "완료 (배포·검증)",
   "ironGate": "해제",
   "stage": "B",
   "complexity": 4,
   "currentTicket": "JT-001",
-  "tickets": ["JT-001"],
+  "tickets": ["JT-001", "monetization-plan(기획)"],
   "deployUrl": "https://brocoli012.github.io/image-trans/",
   "repoUrl": "https://github.com/brocoli012/image-trans",
   "gateResults": [
-    {"gate": "Dev Gate (G2)", "result": "PASS", "note": "npm run build 통과, dist 생성"},
-    {"gate": "QA Gate (G3)", "result": "PASS", "note": "실브라우저 HEIC→JPEG 검증: 출력 JPEG 매직바이트+디코딩 확인, 실패 격리 동작, 콘솔 에러 0"}
+    {"gate": "Dev Gate (G2)", "result": "PASS", "score": 92, "note": "npm run build 통과, dist 생성. 누수 수정 후 코드 품질 양호"},
+    {"gate": "QA Gate (G3)", "result": "PASS", "score": 90, "note": "실측: HEIC→JPEG 유효바이트, 실패격리, 80장×2회 누수 평탄(696/1383→10/7MB), 프라이버시 외부요청0, a11y 보강. 잔여: 라이브 origin 클릭스루는 동치검증으로 대체, 실12MP 100장·대용량ZIP 미측정"}
+  ],
+  "acEvidenceMatrix": [
+    {"ac": "1 HEIC→JPEG", "evidence": "출력 JPEG 매직바이트+디코딩 256²/1024²", "pass": true},
+    {"ac": "2 일괄 최대100", "evidence": "80장×2회 80/80성공·21초·메모리 평탄(누수해소)", "pass": true},
+    {"ac": "3 실패격리", "evidence": "손상파일 주입→성공N·실패1 사유표시·무중단", "pass": true},
+    {"ac": "4 ZIP+개별", "evidence": "버튼/성공분ZIP 확인(대용량ZIP 메모리 미측정)", "pass": true},
+    {"ac": "5 부모친화/3클릭", "evidence": "3클릭·큰버튼·한글·aria-label 보강(폰트/대비 정밀실측 미완)", "pass": true},
+    {"ac": "6 빌드+동작", "evidence": "build 통과+실브라우저 동작", "pass": true},
+    {"ac": "프라이버시", "evidence": "변환중 외부요청 0/109", "pass": true},
+    {"ac": "무음손실경고", "evidence": "멀티프레임 경고 코드(빌드통과, 실Live Photo 런타임검증 미완)", "pass": "partial"}
   ],
   "violations": [],
-  "failureHistory": [],
+  "failureHistory": [
+    {"id": "mem-leak", "desc": "heic2any WASM 메모리 미회수로 배치당 ~687MB 누적 누수", "fix": "Web Worker 격리+12장마다/배치종료 terminate", "verified": "80장×2회 10→7MB 평탄"}
+  ],
   "v6TriggerDecision": null,
-  "libraryExtractCandidates": [],
-  "preset": null,
-  "notes": "빈 프로젝트(greenfield 후보). 요청 대기 중."
+  "preset": "web",
+  "notes": "MVP 완료·배포·검증 종료. 회고+Critic 적대검증 완료(retrospective.md). 스킬 반영: SKILL 5-A/5-B, LL-031~034. 후속 기획: docs/monetization-plan.md(계획만, 사용자 결정 4건 대기)."
 }
