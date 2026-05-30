@@ -7,6 +7,9 @@
   --primary-dark: #1d4ed8;
   --danger: #dc2626;
   --danger-bg: #fff1f1;
+  --warn: #b45309;
+  --warn-bg: #fff7e6;
+  --warn-border: #f0c36d;
   --border: #d7e0ea;
 }
 
@@ -183,6 +186,13 @@ html, body {
   font-size: 3rem;
   background: var(--danger-bg);
 }
+.thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: #9aa7b3;
+}
 .card-body { padding: 12px; }
 .card-name {
   font-size: 1rem;
@@ -200,6 +210,24 @@ html, body {
   font-size: 0.95rem;
   margin-top: 6px;
   font-weight: 600;
+}
+
+.summary .warn-sum { color: var(--warn); }
+
+/* 멀티프레임 HEIC 일부 변환 '주의' 카드 */
+.card-warning {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+.card-warn-badge {
+  margin-top: 6px;
+  background: #ffe9bf;
+  color: var(--warn);
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-radius: 8px;
+  line-height: 1.35;
 }
 
 .footer {

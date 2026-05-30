@@ -9,4 +9,9 @@ export default defineConfig({
   optimizeDeps: {
     include: ['heic2any'],
   },
+  // HEIC 디코딩 워커(heicWorker.js)는 type:'module' 로 생성되고 내부에서
+  // heic2any 를 동적 import 하므로 코드 스플리팅을 지원하는 ES 포맷으로 번들해야 한다.
+  worker: {
+    format: 'es',
+  },
 })

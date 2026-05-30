@@ -1,7 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
-import { convertBatch, MAX_FILES } from './convert.js'
+import { convertBatch, heicDecoder, MAX_FILES } from './convert.js'
+
+// 결과 객체에 매달린 썸네일 object URL 을 해제 (메모리 누수 방지)
+function revokeThumb(r) {
+  if (r && r.thumbUrl) URL.revokeObjectURL(r.thumbUrl)
+}
 
 const STATUS = {
   IDLE: 'idle',
@@ -23,13 +28,30 @@ export default function App() {
   const [progress, setProgress] = useState({ done: 0, total: 0, current: '' })
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef(null)
+  // 최신 results 를 참조로 보관 → unmount 시 썸네일 URL 해제에 사용
+  const resultsRef = useRef([])
+  useEffect(() => {
+    resultsRef.current = results
+  }, [results])
+  // 컴포넌트 unmount 시 남아있는 썸네일 object URL + HEIC 워커 전부 해제
+  useEffect(() => {
+    return () => {
+      resultsRef.current.forEach(revokeThumb)
+      heicDecoder.terminate()
+    }
+  }, [])
 
+  // 'success' 와 'warning'(멀티프레임 일부 변환) 모두 변환에 성공한 이미지로 취급
   const successResults = useMemo(
-    () => results.filter((r) => r.status === 'success'),
+    () => results.filter((r) => r.status === 'success' || r.status === 'warning'),
     [results],
   )
   const errorResults = useMemo(
     () => results.filter((r) => r.status === 'error'),
+    [results],
+  )
+  const warningResults = useMemo(
+    () => results.filter((r) => r.status === 'warning'),
     [results],
   )
 
@@ -43,8 +65,11 @@ export default function App() {
       const merged = [...prev, ...incoming].slice(0, MAX_FILES)
       return merged
     })
-    // 새 파일을 추가하면 이전 결과는 초기화
-    setResults([])
+    // 새 파일을 추가하면 이전 결과는 초기화 (썸네일 URL 해제 후)
+    setResults((prev) => {
+      prev.forEach(revokeThumb)
+      return []
+    })
     setStatus(STATUS.IDLE)
   }, [])
 
@@ -60,7 +85,9 @@ export default function App() {
   }
 
   const clearAll = () => {
-    successResults.forEach((r) => r.url && URL.revokeObjectURL(r.url))
+    results.forEach(revokeThumb)
+    // 진행 중이거나 남아있는 HEIC 워커 종료 → WASM 메모리 회수
+    heicDecoder.terminate()
     setFiles([])
     setResults([])
     setStatus(STATUS.IDLE)
@@ -69,8 +96,9 @@ export default function App() {
 
   const startConvert = async () => {
     if (files.length === 0 || status === STATUS.RUNNING) return
-    // 이전 결과 URL 정리
-    successResults.forEach((r) => r.url && URL.revokeObjectURL(r.url))
+    // 이전 결과 썸네일 URL 정리 + 직전 워커 회수
+    results.forEach(revokeThumb)
+    heicDecoder.terminate()
     setResults([])
     setStatus(STATUS.RUNNING)
     setProgress({ done: 0, total: files.length, current: '' })
@@ -144,6 +172,7 @@ export default function App() {
         onDrop={onDrop}
         onClick={() => inputRef.current && inputRef.current.click()}
         role="button"
+        aria-label={`사진 파일 선택, 한 번에 최대 ${MAX_FILES}장`}
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click()
@@ -188,6 +217,7 @@ export default function App() {
             className="btn btn-ghost"
             onClick={clearAll}
             disabled={status === STATUS.RUNNING}
+            aria-label="선택한 사진과 변환 결과 모두 지우기"
           >
             모두 지우기
           </button>
@@ -212,6 +242,12 @@ export default function App() {
       {status === STATUS.DONE && (
         <div className="summary" aria-live="polite">
           ✅ 완료! 성공 <strong>{successResults.length}장</strong>
+          {warningResults.length > 0 && (
+            <span className="warn-sum">
+              {' '}
+              · 주의 <strong>{warningResults.length}장</strong>
+            </span>
+          )}
           {errorResults.length > 0 && (
             <span className="fail-sum">
               {' '}
@@ -234,13 +270,40 @@ export default function App() {
       {results.length > 0 && (
         <section className="results">
           {results.map((r) =>
-            r.status === 'success' ? (
-              <div className="card" key={r.index}>
-                <img className="thumb" src={r.url} alt={r.name} loading="lazy" />
+            r.status === 'success' || r.status === 'warning' ? (
+              <div
+                className={`card ${r.status === 'warning' ? 'card-warning' : ''}`}
+                key={r.index}
+              >
+                {r.thumbUrl ? (
+                  <img
+                    className="thumb"
+                    src={r.thumbUrl}
+                    alt={`변환된 사진: ${r.name}`}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div
+                    className="thumb thumb-placeholder"
+                    role="img"
+                    aria-label={`변환된 사진: ${r.name}`}
+                  >
+                    🖼️
+                  </div>
+                )}
                 <div className="card-body">
                   <div className="card-name" title={r.name}>{r.name}</div>
                   <div className="card-meta">{formatSize(r.size)}</div>
-                  <button className="btn btn-small" onClick={() => downloadOne(r)}>
+                  {r.status === 'warning' && (
+                    <div className="card-warn-badge" role="status">
+                      ⚠️ {r.warning}
+                    </div>
+                  )}
+                  <button
+                    className="btn btn-small"
+                    onClick={() => downloadOne(r)}
+                    aria-label={`${r.name} 다운로드`}
+                  >
                     ⬇ 다운로드
                   </button>
                 </div>
